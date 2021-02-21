@@ -17,7 +17,13 @@ struct Ray
 struct HitData
 {
     float distance;
-    float3 normal;
+    float3 normal, color;
+};
+
+struct Sphere
+{
+    float3 position, color;
+    float radius;
 };
 
 
@@ -40,26 +46,53 @@ Ray CreateCameraRay(float2 uv)
     return CreateRay(origin, direction);
 }
 
-HitData CreateHitData(float distance, float3 normal)
+HitData CreateHitData(float distance, float3 normal, float3 color)
 {
     HitData hit;
     hit.distance = distance;
     hit.normal = normal;
+    hit.color = color;
 
     return hit;
 }
 
+Sphere CreateSphere(float3 position, float radius, float3 color)
+{
+    Sphere sphere;
+    sphere.position = position;
+    sphere.radius = radius;
+    sphere.color = color;
+
+    return sphere;
+}
+
+
+Sphere GetClosest(float3 position)
+{
+    Sphere sphere = CreateSphere(float3(-1, 1, 0), 1, float3(21, 101, 192) / 255.0f);
+    Sphere sphere2 = CreateSphere(float3(0, 1, -0.5f), 1, float3(255, 193, 7) / 255.0f);
+    //Sphere sphere = CreateSphere(float3(-1, 1, 0), 1, float3(1, 0, 0));
+    //Sphere sphere2 = CreateSphere(float3(0, 1, -0.5f), 1, float3(0, 1, 0));
+
+    float sphereDistance = length(position - sphere.position) - sphere.radius;
+    float sphere2Distance = length(position - sphere2.position) - sphere2.radius;
+
+    if (sphereDistance < sphere2Distance)
+        return sphere;
+
+    return sphere2;
+}
+
+float GetDistance(float3 position, Sphere sphere)
+{
+    return length(position - sphere.position) - sphere.radius;
+}
 
 float GetDistance(float3 position)
 {
-    float4 sphere = float4(-1, 1, 0, 1);
-    float4 sphere2 = float4(0, 1, -0.5f, 1);
-    float sphereDistance = length(position - sphere.xyz) - sphere.w;
-    float sphere2Distance = length(position - sphere2.xyz) - sphere2.w;
-    float planeDistance = position.y;
+    Sphere sphere = GetClosest(position);
 
-    return min(sphereDistance, sphere2Distance);
-    //return min(min(sphereDistance, planeDistance), sphere2Distance);
+    return GetDistance(position, sphere);
 }
 
 float3 GetNormal(float3 position)
@@ -76,21 +109,31 @@ float3 GetNormal(float3 position)
     return normalize(normal);
 }
 
-float RayMarch(Ray ray)
+HitData RayMarch(Ray ray)
 {
     float distance = 0;
+    float3 normal = 0;
+    float3 color = 0;
 
     for (uint i = 0; i < MaxSteps; i++)
     {
-        float currentDistance = GetDistance(ray.origin);
+        Sphere closest = GetClosest(ray.origin);
+        float currentDistance = GetDistance(ray.origin, closest);
         ray.origin += currentDistance * ray.direction;
         distance += currentDistance;
 
-        if (distance >= MaxDistance || distance <= MinDistance)
+        if (distance >= MaxDistance)
             break;
+
+        if (currentDistance <= MinDistance)
+        {
+            normal = GetNormal(ray.origin);
+            color = closest.color;
+            break;
+        }
     }
 
-    return distance;
+    return CreateHitData(distance, normal, color);
 }
 
 
@@ -103,9 +146,12 @@ void CSMain (uint3 id : SV_DispatchThreadID)
     float2 uv = id.xy / float2(width, height) * 2 - 1;
     Ray ray = CreateCameraRay(uv);
 
-    float distance = RayMarch(ray);
+    HitData hit = RayMarch(ray);
 
-    //float color = distance / 10.0f;
-    float3 color = GetNormal(ray.origin + ray.direction * distance);
+    float3 lightDirection = float3(-1, -1, 1);
+    float3 lightColor = float3(1.0f, 0.956f, 0.8392f);
+    float lightIntensity = 0.65f;
+
+    float3 color = hit.color * dot(hit.normal, -lightDirection) * lightColor * lightIntensity;
     Result[id.xy] = float4(color, 0);
 }
