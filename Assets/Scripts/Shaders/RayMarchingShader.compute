@@ -1,0 +1,111 @@
+#pragma kernel CSMain
+
+RWTexture2D<float4> Result;
+
+float4x4 CameraToWorld, CameraInverseProjection;
+
+static const uint MaxSteps = 100;
+static const float MinDistance = 0.01f;
+static const float MaxDistance = 100;
+static const float infinity = 3.402823466e+38;
+
+struct Ray
+{
+    float3 origin, direction;
+};
+
+struct HitData
+{
+    float distance;
+    float3 normal;
+};
+
+
+Ray CreateRay(float3 origin, float3 direction)
+{
+    Ray ray;
+    ray.origin = origin;
+    ray.direction = direction;
+
+    return ray;
+}
+
+Ray CreateCameraRay(float2 uv)
+{
+    float3 origin = mul(CameraToWorld, float4(0, 0, 0, 1)).xyz;
+    float3 direction = mul(CameraInverseProjection, float4(uv, 0, 1)).xyz;
+    direction = mul(CameraToWorld, float4(direction, 0)).xyz;
+    direction = normalize(direction);
+
+    return CreateRay(origin, direction);
+}
+
+HitData CreateHitData(float distance, float3 normal)
+{
+    HitData hit;
+    hit.distance = distance;
+    hit.normal = normal;
+
+    return hit;
+}
+
+
+float GetDistance(float3 position)
+{
+    float4 sphere = float4(-1, 1, 0, 1);
+    float4 sphere2 = float4(0, 1, -0.5f, 1);
+    float sphereDistance = length(position - sphere.xyz) - sphere.w;
+    float sphere2Distance = length(position - sphere2.xyz) - sphere2.w;
+    float planeDistance = position.y;
+
+    return min(sphereDistance, sphere2Distance);
+    //return min(min(sphereDistance, planeDistance), sphere2Distance);
+}
+
+float3 GetNormal(float3 position)
+{
+    float distance = GetDistance(position);
+    float2 e = float2(0.001f, 0);
+
+    float3 normal = distance - float3(
+        GetDistance(position - e.xyy),
+        GetDistance(position - e.yxy),
+        GetDistance(position - e.yyx)
+        );
+
+    return normalize(normal);
+}
+
+float RayMarch(Ray ray)
+{
+    float distance = 0;
+
+    for (uint i = 0; i < MaxSteps; i++)
+    {
+        float currentDistance = GetDistance(ray.origin);
+        ray.origin += currentDistance * ray.direction;
+        distance += currentDistance;
+
+        if (distance >= MaxDistance || distance <= MinDistance)
+            break;
+    }
+
+    return distance;
+}
+
+
+[numthreads(32,32,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    float width, height;
+    Result.GetDimensions(width, height);
+
+    float2 uv = id.xy / float2(width, height) * 2 - 1;
+    Ray ray = CreateCameraRay(uv);
+
+    float distance = RayMarch(ray);
+
+    //float color = distance / 10.0f;
+    float3 color = GetNormal(ray.origin + ray.direction * distance);
+    Result[id.xy] = float4(color, 0);
+}
