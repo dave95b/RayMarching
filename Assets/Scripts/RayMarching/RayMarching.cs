@@ -9,16 +9,21 @@ public class RayMarching : MonoBehaviour
     [SerializeField]
     private ComputeShader rayMarchingShader;
 
+    [SerializeField]
+    private ShapeController shapeController;
+
     private RenderTexture target;
     private new Camera camera;
 
     private int threadGroupsX, threadGroupsY;
 
-    private void Start()
+    private ComputeBuffer shapeBuffer;
+
+    private bool updated = true;
+
+    private void Awake()
     {
         camera = Camera.main;
-        Debug.LogError(camera.transform.forward);
-        Debug.LogError(camera.transform.position);
 
         threadGroupsX = Mathf.CeilToInt(Screen.width / 32);
         threadGroupsY = Mathf.CeilToInt(Screen.height / 32);
@@ -26,13 +31,20 @@ public class RayMarching : MonoBehaviour
         target = CreateRenderTexture();
         rayMarchingShader.SetTexture(0, "Result", target);
         renderDispatcher.OnImageRendered += OnImageRendered;
+
+        shapeController.OnShapesUpdated += OnShapesUpdated;
     }
 
     private void OnImageRendered(RenderTexture source, RenderTexture destination)
     {
+        if (!updated)
+            return;
+
         SetShaderParameters();
         rayMarchingShader.Dispatch(0, threadGroupsX, threadGroupsY, 1);
         Graphics.Blit(target, destination);
+
+        updated = false;
     }
 
     private void SetShaderParameters()
@@ -48,5 +60,18 @@ public class RayMarching : MonoBehaviour
         result.Create();
 
         return result;
+    }
+
+    private void OnShapesUpdated(Shape[] shapes)
+    {
+        if (shapeBuffer == null)
+        {
+            shapeBuffer = new ComputeBuffer(shapes.Length, Shape.SizeOf());
+            rayMarchingShader.SetBuffer(0, "Shapes", shapeBuffer);
+        }
+
+        shapeBuffer.SetData(shapes);
+
+        updated = true;
     }
 }

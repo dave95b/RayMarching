@@ -1,14 +1,5 @@
 #pragma kernel CSMain
 
-RWTexture2D<float4> Result;
-
-float4x4 CameraToWorld, CameraInverseProjection;
-
-static const uint MaxSteps = 100;
-static const float MinDistance = 0.01f;
-static const float MaxDistance = 100;
-static const float infinity = 3.402823466e+38;
-
 struct Ray
 {
     float3 origin, direction;
@@ -25,6 +16,18 @@ struct Sphere
     float3 position, color;
     float radius;
 };
+
+
+RWTexture2D<float4> Result;
+
+float4x4 CameraToWorld, CameraInverseProjection;
+
+RWStructuredBuffer<Sphere> Shapes;
+
+static const uint MaxSteps = 100;
+static const float MinDistance = 0.01f;
+static const float MaxDistance = 100;
+static const float infinity = 3.402823466e+38;
 
 
 Ray CreateRay(float3 origin, float3 direction)
@@ -67,32 +70,63 @@ Sphere CreateSphere(float3 position, float radius, float3 color)
 }
 
 
-Sphere GetClosest(float3 position)
-{
-    Sphere sphere = CreateSphere(float3(-1, 1, 0), 1, float3(21, 101, 192) / 255.0f);
-    Sphere sphere2 = CreateSphere(float3(0, 1, -0.5f), 1, float3(255, 193, 7) / 255.0f);
-    //Sphere sphere = CreateSphere(float3(-1, 1, 0), 1, float3(1, 0, 0));
-    //Sphere sphere2 = CreateSphere(float3(0, 1, -0.5f), 1, float3(0, 1, 0));
-
-    float sphereDistance = length(position - sphere.position) - sphere.radius;
-    float sphere2Distance = length(position - sphere2.position) - sphere2.radius;
-
-    if (sphereDistance < sphere2Distance)
-        return sphere;
-
-    return sphere2;
-}
-
-float GetDistance(float3 position, Sphere sphere)
+float SphereDistance(float3 position, Sphere sphere)
 {
     return length(position - sphere.position) - sphere.radius;
 }
 
+Sphere GetMin(float3 position, out float distance)
+{
+    uint count, stride;
+    Shapes.GetDimensions(count, stride);
+
+    Sphere result;
+    distance = MaxDistance;
+
+    for (uint i = 0; i < count; i++)
+    {
+        Sphere shape = Shapes[i];
+        float currentDistance = SphereDistance(position, shape);
+
+        if (currentDistance < distance)
+        {
+            distance = currentDistance;
+            result = shape;
+        }
+    }
+
+    return result;
+}
+
+Sphere GetMax(float3 position, out float distance)
+{
+    uint count, stride;
+    Shapes.GetDimensions(count, stride);
+
+    Sphere result;
+    distance = 0;
+
+    for (uint i = 0; i < count; i++)
+    {
+        Sphere shape = Shapes[i];
+        float currentDistance = SphereDistance(position, shape);
+
+        if (currentDistance > distance)
+        {
+            distance = currentDistance;
+            result = shape;
+        }
+    }
+
+    return result;
+}
+
 float GetDistance(float3 position)
 {
-    Sphere sphere = GetClosest(position);
+    float distance;
+    Sphere sphere = GetMin(position, distance);
 
-    return GetDistance(position, sphere);
+    return distance;
 }
 
 float3 GetNormal(float3 position)
@@ -117,8 +151,8 @@ HitData RayMarch(Ray ray)
 
     for (uint i = 0; i < MaxSteps; i++)
     {
-        Sphere closest = GetClosest(ray.origin);
-        float currentDistance = GetDistance(ray.origin, closest);
+        float currentDistance;
+        Sphere closest = GetMin(ray.origin, currentDistance);
         ray.origin += currentDistance * ray.direction;
         distance += currentDistance;
 
@@ -152,6 +186,7 @@ void CSMain (uint3 id : SV_DispatchThreadID)
     float3 lightColor = float3(1.0f, 0.956f, 0.8392f);
     float lightIntensity = 0.65f;
 
-    float3 color = hit.color * dot(hit.normal, -lightDirection) * lightColor * lightIntensity;
+    float light = dot(hit.normal, -lightDirection) + 1;
+    float3 color = hit.color * lerp(0.25f, 1, light) * lightColor * lightIntensity;
     Result[id.xy] = float4(color, 0);
 }
