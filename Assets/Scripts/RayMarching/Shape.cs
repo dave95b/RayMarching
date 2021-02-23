@@ -1,4 +1,5 @@
-﻿using System.Runtime.InteropServices;
+﻿using System;
+using System.Runtime.InteropServices;
 using UnityEngine;
 
 namespace Raymarching
@@ -7,14 +8,24 @@ namespace Raymarching
     {
         public readonly Vector3 Position, Color;
         public readonly float Radius;
+        public readonly Operation Operation;
 
-        public Shape(Vector3 position, Vector3 color, float radius)
+        public Shape(Vector3 position, Vector3 color, float radius, Operation operation)
         {
             Position = position;
             Color = color;
             Radius = radius;
+            Operation = operation;
         }
 
         public static int SizeOf() => Marshal.SizeOf<Shape>();
+    }
+
+    public enum Operation
+    {
+        None = 0,
+        Cut = 1,
+        Mask = 2,
+        Blend = 3
     }
 }

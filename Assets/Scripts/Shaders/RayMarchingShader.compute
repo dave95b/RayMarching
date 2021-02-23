@@ -11,10 +11,17 @@ struct HitData
     float3 normal, color;
 };
 
+struct Step
+{
+    float distance;
+    float3 color;
+};
+
 struct Sphere
 {
     float3 position, color;
     float radius;
+    int operation;
 };
 
 
@@ -28,6 +35,8 @@ static const uint MaxSteps = 100;
 static const float MinDistance = 0.01f;
 static const float MaxDistance = 100;
 static const float infinity = 3.402823466e+38;
+
+uint shapeCount;
 
 
 Ray CreateRay(float3 origin, float3 direction)
@@ -59,6 +68,15 @@ HitData CreateHitData(float distance, float3 normal, float3 color)
     return hit;
 }
 
+Step CreateStep(float distance, float3 color)
+{
+    Step step;
+    step.distance = distance;
+    step.color = color;
+
+    return step;
+}
+
 Sphere CreateSphere(float3 position, float radius, float3 color)
 {
     Sphere sphere;
@@ -75,47 +93,54 @@ float SphereDistance(float3 position, Sphere sphere)
     return length(position - sphere.position) - sphere.radius;
 }
 
-Sphere GetMin(float3 position, out float distance)
+void Blend(inout Step current, float distance, float3 color)
 {
-    uint count, stride;
-    Shapes.GetDimensions(count, stride);
+    float k = 0.2f;
+    float h = clamp(0.5f + 0.5f * (distance - current.distance) / k, 0, 1);
 
-    Sphere result;
-    distance = MaxDistance;
-
-    for (uint i = 0; i < count; i++)
-    {
-        Sphere shape = Shapes[i];
-        float currentDistance = SphereDistance(position, shape);
-
-        if (currentDistance < distance)
-        {
-            distance = currentDistance;
-            result = shape;
-        }
-    }
-
-    return result;
+    current.distance = lerp(distance, current.distance, h) - k * h * (1.0 - h);
+    current.color = lerp(color, current.color, h);
 }
 
-Sphere GetMax(float3 position, out float distance)
+void Combine(inout Step current, Sphere shape, float3 position)
+{
+    float distance = SphereDistance(position, shape);
+
+    if (shape.operation == 0)
+    {
+        current.distance = min(current.distance, distance);
+        if (current.distance == distance)
+            current.color = shape.color;
+    }
+    else if (shape.operation == 1)
+    {
+        current.distance = max(current.distance, -distance);
+        if (current.distance == -distance)
+            current.color = shape.color;
+    }
+    else if (shape.operation == 2)
+    {
+        current.distance = max(current.distance, distance);
+        if (current.distance == distance)
+            current.color = shape.color;
+    }
+    else if (shape.operation == 3)
+    {
+        Blend(current, distance, shape.color);
+    }
+}
+
+Step GetStep(float3 position)
 {
     uint count, stride;
     Shapes.GetDimensions(count, stride);
 
-    Sphere result;
-    distance = 0;
+    Step result = CreateStep(MaxDistance, 0);
 
-    for (uint i = 0; i < count; i++)
+    for (int i = 0; i < shapeCount; i++)
     {
         Sphere shape = Shapes[i];
-        float currentDistance = SphereDistance(position, shape);
-
-        if (currentDistance > distance)
-        {
-            distance = currentDistance;
-            result = shape;
-        }
+        Combine(result, shape, position);
     }
 
     return result;
@@ -123,10 +148,7 @@ Sphere GetMax(float3 position, out float distance)
 
 float GetDistance(float3 position)
 {
-    float distance;
-    Sphere sphere = GetMin(position, distance);
-
-    return distance;
+    return GetStep(position).distance;
 }
 
 float3 GetNormal(float3 position)
@@ -151,18 +173,17 @@ HitData RayMarch(Ray ray)
 
     for (uint i = 0; i < MaxSteps; i++)
     {
-        float currentDistance;
-        Sphere closest = GetMin(ray.origin, currentDistance);
-        ray.origin += currentDistance * ray.direction;
-        distance += currentDistance;
+        Step step = GetStep(ray.origin);
+        ray.origin += step.distance * ray.direction;
+        distance += step.distance;
 
         if (distance >= MaxDistance)
             break;
 
-        if (currentDistance <= MinDistance)
+        if (step.distance <= MinDistance)
         {
             normal = GetNormal(ray.origin);
-            color = closest.color;
+            color = step.color;
             break;
         }
     }
@@ -176,6 +197,9 @@ void CSMain (uint3 id : SV_DispatchThreadID)
 {
     float width, height;
     Result.GetDimensions(width, height);
+
+    uint stride;
+    Shapes.GetDimensions(shapeCount, stride);
 
     float2 uv = id.xy / float2(width, height) * 2 - 1;
     Ray ray = CreateCameraRay(uv);

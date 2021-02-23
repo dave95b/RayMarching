@@ -14,12 +14,15 @@ namespace Raymarching
         [SerializeField, Range(0.5f, 3f)]
         private float radius = 1f;
 
+        [SerializeField]
+        private Operation operation;
+
         public Shape Shape
         {
             get
             {
                 Vector3 vecColor = new Vector3(color.r, color.g, color.b);
-                return new Shape(transform.position, vecColor, radius);
+                return new Shape(transform.position, vecColor, radius, operation);
             }
         }
 
