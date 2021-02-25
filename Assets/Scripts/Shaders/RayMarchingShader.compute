@@ -22,6 +22,7 @@ struct Sphere
     float3 position, color;
     float radius;
     int operation;
+    float blendStrength ;
 };
 
 
@@ -93,9 +94,8 @@ float SphereDistance(float3 position, Sphere sphere)
     return length(position - sphere.position) - sphere.radius;
 }
 
-void Blend(inout Step current, float distance, float3 color)
+void Blend(inout Step current, float distance, float3 color, float k)
 {
-    float k = 0.2f;
     float h = clamp(0.5f + 0.5f * (distance - current.distance) / k, 0, 1);
 
     current.distance = lerp(distance, current.distance, h) - k * h * (1.0 - h);
@@ -126,7 +126,7 @@ void Combine(inout Step current, Sphere shape, float3 position)
     }
     else if (shape.operation == 3)
     {
-        Blend(current, distance, shape.color);
+        Blend(current, distance, shape.color, shape.blendStrength);
     }
 }
 

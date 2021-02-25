@@ -17,12 +17,15 @@ namespace Raymarching
         [SerializeField]
         private Operation operation;
 
+        [SerializeField, Range(0f, 2f)]
+        private float blendStrength = 0.5f;
+
         public Shape Shape
         {
             get
             {
                 Vector3 vecColor = new Vector3(color.r, color.g, color.b);
-                return new Shape(transform.position, vecColor, radius, operation);
+                return new Shape(transform.position, vecColor, radius, operation, blendStrength);
             }
         }
 
