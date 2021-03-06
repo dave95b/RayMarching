@@ -29,7 +29,10 @@ namespace Raymarching
         private void UpdateShapes()
         {
             for (int i = 0; i < sceneShapes.Length; i++)
+            {
+                sceneShapes[i].Id = i;
                 shapes[i] = sceneShapes[i].Shape;
+            }
 
             OnShapesUpdated?.Invoke(shapes);
         }

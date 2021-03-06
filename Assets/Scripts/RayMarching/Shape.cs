@@ -1,5 +1,4 @@
-﻿using System;
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 using UnityEngine;
 
 namespace Raymarching
@@ -10,14 +9,21 @@ namespace Raymarching
         public readonly float Radius;
         public readonly Operation Operation;
         public readonly float BlendStrength;
+        public readonly int ChildCount;
 
-        public Shape(Vector3 position, Vector3 color, float radius, Operation operation, float blendStrength)
+        public Shape(Vector3 position,
+            Vector3 color,
+            float radius,
+            Operation operation,
+            float blendStrength,
+            int childCount)
         {
             Position = position;
             Color = color;
             Radius = radius;
             Operation = operation;
             BlendStrength = blendStrength;
+            ChildCount = childCount;
         }
 
         public static int SizeOf() => Marshal.SizeOf<Shape>();

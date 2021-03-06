@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections;
 using UnityEngine;
 
 namespace Raymarching
@@ -7,7 +6,9 @@ namespace Raymarching
     public class SceneShape : MonoBehaviour
     {
         public event Action OnUpdated;
-        
+
+        public int Id;
+
         [SerializeField]
         private Color color;
 
@@ -25,7 +26,12 @@ namespace Raymarching
             get
             {
                 Vector3 vecColor = new Vector3(color.r, color.g, color.b);
-                return new Shape(transform.position, vecColor, radius, operation, blendStrength);
+                return new Shape(transform.position,
+                    vecColor,
+                    radius,
+                    operation,
+                    blendStrength,
+                    transform.childCount);
             }
         }
 

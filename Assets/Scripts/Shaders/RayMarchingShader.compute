@@ -17,12 +17,13 @@ struct Step
     float3 color;
 };
 
-struct Sphere
+struct Shape
 {
     float3 position, color;
     float radius;
     int operation;
-    float blendStrength ;
+    float blendStrength;
+    int childCount;
 };
 
 
@@ -30,7 +31,7 @@ RWTexture2D<float4> Result;
 
 float4x4 CameraToWorld, CameraInverseProjection;
 
-RWStructuredBuffer<Sphere> Shapes;
+RWStructuredBuffer<Shape> Shapes;
 
 static const uint MaxSteps = 100;
 static const float MinDistance = 0.01f;
@@ -78,20 +79,29 @@ Step CreateStep(float distance, float3 color)
     return step;
 }
 
-Sphere CreateSphere(float3 position, float radius, float3 color)
+Shape CreateShape(float3 position, float radius, float3 color)
 {
-    Sphere sphere;
-    sphere.position = position;
-    sphere.radius = radius;
-    sphere.color = color;
+    Shape shape;
+    shape.position = position;
+    shape.radius = radius;
+    shape.color = color;
 
-    return sphere;
+    return shape;
 }
 
 
-float SphereDistance(float3 position, Sphere sphere)
+float ShapeDistance(float3 position, Shape shape)
 {
-    return length(position - sphere.position) - sphere.radius;
+    return length(position - shape.position) - shape.radius;
+}
+
+Step StepFromShape(Shape shape, float3 position)
+{
+    Step step;
+    step.distance = ShapeDistance(position, shape);
+    step.color = shape.color;
+
+    return step;
 }
 
 void Blend(inout Step current, float distance, float3 color, float k)
@@ -102,32 +112,31 @@ void Blend(inout Step current, float distance, float3 color, float k)
     current.color = lerp(color, current.color, h);
 }
 
-void Combine(inout Step current, Sphere shape, float3 position)
+void Combine(inout Step current, Step childStep, Shape shape)
 {
-    float distance = SphereDistance(position, shape);
+    float distance = childStep.distance;
+    float3 color = childStep.color;
 
-    if (shape.operation == 0)
+    if (shape.operation == 0) // normal
     {
         current.distance = min(current.distance, distance);
         if (current.distance == distance)
-            current.color = shape.color;
+            current.color = color;
     }
-    else if (shape.operation == 1)
+    else if (shape.operation == 1) // cut
     {
         current.distance = max(current.distance, -distance);
         if (current.distance == -distance)
-            current.color = shape.color;
+            current.color = color;
     }
-    else if (shape.operation == 2)
+    else if (shape.operation == 2) // mask
     {
         current.distance = max(current.distance, distance);
         if (current.distance == distance)
-            current.color = shape.color;
+            current.color = color;
     }
-    else if (shape.operation == 3)
-    {
-        Blend(current, distance, shape.color, shape.blendStrength);
-    }
+    else if (shape.operation == 3) // blend
+        Blend(current, distance, color, shape.blendStrength);
 }
 
 Step GetStep(float3 position)
@@ -139,8 +148,19 @@ Step GetStep(float3 position)
 
     for (int i = 0; i < shapeCount; i++)
     {
-        Sphere shape = Shapes[i];
-        Combine(result, shape, position);
+        Shape shape = Shapes[i];
+        Step shapeStep = StepFromShape(shape, position);
+
+        for (int j = 1; j <= shape.childCount; j++)
+        {
+            Shape child = Shapes[i + j];
+            Step childStep = StepFromShape(child, position);
+
+            Combine(shapeStep, childStep, child);
+        }
+        i += shape.childCount;
+
+        Combine(result, shapeStep, shape);
     }
 
     return result;
@@ -159,8 +179,7 @@ float3 GetNormal(float3 position)
     float3 normal = distance - float3(
         GetDistance(position - e.xyy),
         GetDistance(position - e.yxy),
-        GetDistance(position - e.yyx)
-        );
+        GetDistance(position - e.yyx));
 
     return normalize(normal);
 }
