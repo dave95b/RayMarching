@@ -35,6 +35,15 @@ public class RayMarching : MonoBehaviour
         shapeController.OnShapesUpdated += OnShapesUpdated;
     }
 
+    private void Update()
+    {
+        if (camera.transform.hasChanged)
+        {
+            camera.transform.hasChanged = false;
+            updated = true;
+        }
+    }
+
     private void OnImageRendered(RenderTexture source, RenderTexture destination)
     {
         if (!updated)

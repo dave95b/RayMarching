@@ -12,28 +12,29 @@ namespace Raymarching
         [SerializeField]
         private Color color;
 
-        [SerializeField, Range(0.5f, 3f)]
+        [SerializeField, Range(0f, 3f)]
         private float radius = 1f;
+
+        [SerializeField]
+        private Vector3 size;
 
         [SerializeField]
         private Operation operation;
 
+        [SerializeField]
+        private ShapeType type;
+
         [SerializeField, Range(0f, 2f)]
         private float blendStrength = 0.5f;
 
-        public Shape Shape
-        {
-            get
-            {
-                Vector3 vecColor = new Vector3(color.r, color.g, color.b);
-                return new Shape(transform.position,
-                    vecColor,
+        public Shape Shape => new Shape(transform.position,
+                    new Vector3(color.r, color.g, color.b),
+                    size,
                     radius,
                     operation,
+                    type,
                     blendStrength,
                     transform.childCount);
-            }
-        }
 
         private void Update()
         {

@@ -19,9 +19,9 @@ struct Step
 
 struct Shape
 {
-    float3 position, color;
+    float3 position, color, size;
     float radius;
-    int operation;
+    int operation, type;
     float blendStrength;
     int childCount;
 };
@@ -37,6 +37,17 @@ static const uint MaxSteps = 100;
 static const float MinDistance = 0.01f;
 static const float MaxDistance = 100;
 static const float infinity = 3.402823466e+38;
+
+static const int OperationNone = 0;
+static const int OperationCut = 1;
+static const int OperationMask = 2;
+static const int OperationBlend = 3;
+
+static const int ShapeSphere = 0;
+static const int ShapeBox = 1;
+static const int ShapeOctahedron = 2;
+static const int ShapePlane = 3;
+static const int ShapeTorus = 4;
 
 uint shapeCount;
 
@@ -90,9 +101,55 @@ Shape CreateShape(float3 position, float radius, float3 color)
 }
 
 
-float ShapeDistance(float3 position, Shape shape)
+float SphereDistance(float3 position, Shape shape)
 {
     return length(position - shape.position) - shape.radius;
+}
+
+float BoxDistance(float3 position, Shape shape)
+{
+    float3 o = abs(position - shape.position) - shape.size * 0.5f;
+    float ud = length(max(o, 0));
+    float n = min(max(o.x, max(o.y, o.z)), 0);
+
+    return ud + n - shape.radius * 0.3f;
+}
+
+float OctahedronDistance(float3 position, Shape shape)
+{
+    float3 p = position - shape.position;
+    p = abs(p);
+    
+    return (p.x + p.y + p.z - shape.radius) * 0.57735027f;
+}
+
+float PlaneDistance(float3 position, Shape shape)
+{
+    return position.y - shape.position.y;
+}
+
+float TorusDistance(float3 position, Shape shape)
+{
+    float3 p = position - shape.position;
+    float2 q = float2(length(p.xz) - shape.size.x, p.y);
+
+    return length(q) - shape.size.y;
+}
+
+float ShapeDistance(float3 position, Shape shape)
+{
+    if (shape.type == ShapeSphere)
+        return SphereDistance(position, shape);
+    else if (shape.type == ShapeBox)
+        return BoxDistance(position, shape);
+    else if (shape.type == ShapeOctahedron)
+        return OctahedronDistance(position, shape);
+    else if (shape.type == ShapePlane)
+        return PlaneDistance(position, shape);
+    else if (shape.type == ShapeTorus)
+        return TorusDistance(position, shape);
+
+    return 0;
 }
 
 Step StepFromShape(Shape shape, float3 position)
@@ -106,7 +163,7 @@ Step StepFromShape(Shape shape, float3 position)
 
 void Blend(inout Step current, float distance, float3 color, float k)
 {
-    float h = clamp(0.5f + 0.5f * (distance - current.distance) / k, 0, 1);
+    float h = saturate(0.5f + 0.5f * (distance - current.distance) / k);
 
     current.distance = lerp(distance, current.distance, h) - k * h * (1.0 - h);
     current.color = lerp(color, current.color, h);
@@ -117,25 +174,25 @@ void Combine(inout Step current, Step childStep, Shape shape)
     float distance = childStep.distance;
     float3 color = childStep.color;
 
-    if (shape.operation == 0) // normal
+    if (shape.operation == OperationNone)
     {
         current.distance = min(current.distance, distance);
         if (current.distance == distance)
             current.color = color;
     }
-    else if (shape.operation == 1) // cut
+    else if (shape.operation == OperationCut)
     {
         current.distance = max(current.distance, -distance);
         if (current.distance == -distance)
             current.color = color;
     }
-    else if (shape.operation == 2) // mask
+    else if (shape.operation == OperationMask)
     {
         current.distance = max(current.distance, distance);
         if (current.distance == distance)
             current.color = color;
     }
-    else if (shape.operation == 3) // blend
+    else if (shape.operation == OperationBlend)
         Blend(current, distance, color, shape.blendStrength);
 }
 
