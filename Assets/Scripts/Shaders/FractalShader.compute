@@ -1,0 +1,138 @@
+#pragma kernel CSMain
+
+struct Ray
+{
+    float3 origin, direction;
+};
+
+struct HitData
+{
+    float distance;
+    float3 normal, color;
+};
+
+struct Step
+{
+    float distance;
+    float3 color;
+};
+
+
+RWTexture2D<float4> Result;
+
+float4x4 CameraToWorld, CameraInverseProjection;
+
+static const uint MaxSteps = 100;
+static const float MinDistance = 0.01f;
+static const float MaxDistance = 100;
+static const float infinity = 3.402823466e+38;
+
+Ray CreateRay(float3 origin, float3 direction)
+{
+    Ray ray;
+    ray.origin = origin;
+    ray.direction = direction;
+
+    return ray;
+}
+
+Ray CreateCameraRay(float2 uv)
+{
+    float3 origin = mul(CameraToWorld, float4(0, 0, 0, 1)).xyz;
+    float3 direction = mul(CameraInverseProjection, float4(uv, 0, 1)).xyz;
+    direction = mul(CameraToWorld, float4(direction, 0)).xyz;
+    direction = normalize(direction);
+
+    return CreateRay(origin, direction);
+}
+
+HitData CreateHitData(float distance, float3 normal, float3 color)
+{
+    HitData hit;
+    hit.distance = distance;
+    hit.normal = normal;
+    hit.color = color;
+
+    return hit;
+}
+
+Step CreateStep(float distance, float3 color)
+{
+    Step step;
+    step.distance = distance;
+    step.color = color;
+
+    return step;
+}
+
+Step GetStep(float3 position)
+{
+    Step result = CreateStep(MaxDistance, 0);
+    // TODO: implement
+    return result;
+}
+
+float GetDistance(float3 position)
+{
+    return GetStep(position).distance;
+}
+
+float3 GetNormal(float3 position)
+{
+    float distance = GetDistance(position);
+    float2 e = float2(0.001f, 0);
+
+    float3 normal = distance - float3(
+        GetDistance(position - e.xyy),
+        GetDistance(position - e.yxy),
+        GetDistance(position - e.yyx));
+
+    return normalize(normal);
+}
+
+HitData RayMarch(Ray ray)
+{
+    float distance = 0;
+    float3 normal = 0;
+    float3 color = 0;
+
+    for (uint i = 0; i < MaxSteps; i++)
+    {
+        Step step = GetStep(ray.origin);
+        ray.origin += step.distance * ray.direction;
+        distance += step.distance;
+
+        if (distance >= MaxDistance)
+            break;
+
+        if (step.distance <= MinDistance)
+        {
+            normal = GetNormal(ray.origin);
+            color = step.color;
+            break;
+        }
+    }
+
+    return CreateHitData(distance, normal, color);
+}
+
+
+[numthreads(32,32,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    float width, height;
+    Result.GetDimensions(width, height);
+
+    float2 uv = id.xy / float2(width, height) * 2 - 1;
+    Ray ray = CreateCameraRay(uv);
+
+    HitData hit = RayMarch(ray);
+
+    float3 lightDirection = float3(-1, -1, 1);
+    float3 lightColor = float3(1.0f, 0.956f, 0.8392f);
+    float lightIntensity = 0.65f;
+
+    float light = dot(hit.normal, -lightDirection) + 1;
+    float3 color = hit.color * lerp(0.25f, 1, light) * lightColor * lightIntensity;
+    Result[id.xy] = float4(color, 0);
+}
