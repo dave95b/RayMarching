@@ -203,7 +203,7 @@ Step GetStep(float3 position)
 
     Step result = CreateStep(MaxDistance, 0);
 
-    for (int i = 0; i < shapeCount; i++)
+    for (uint i = 0; i < shapeCount; i++)
     {
         Shape shape = Shapes[i];
         Step shapeStep = StepFromShape(shape, position);
