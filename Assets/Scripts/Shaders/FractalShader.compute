@@ -5,24 +5,30 @@ struct Ray
     float3 origin, direction;
 };
 
+struct FractalData
+{
+    float distance;
+    uint iterations;
+};
+
 struct HitData
 {
     float distance;
     float3 normal;
-    uint iterations;
+    uint rayIterations, fractalIterations;
 };
 
 static const uint MaxSteps = 48;
+static const uint FractalIterations = 16;
 static const float MinDistance = 0.01f;
 static const float infinity = 3.402823466e+38;
-static const float FractalIterations = 16;
 
 RWTexture2D<float4> Result;
 
 float4x4 CameraToWorld, CameraInverseProjection;
 
-float Power;
-float3 ColorMix;
+float Power, Darkness, BlackAndWhite, LightIntensity;
+float3 ColorMix, LightColor, LightDirection;
 
 Ray CreateRay(float3 origin, float3 direction)
 {
@@ -43,23 +49,35 @@ Ray CreateCameraRay(float2 uv)
     return CreateRay(origin, direction);
 }
 
-HitData CreateHitData(float distance, float3 normal, uint iterations)
+FractalData CreateFractalData(float distance, uint iterations)
+{
+    FractalData data;
+    data.distance = distance;
+    data.iterations = iterations;
+
+    return data;
+}
+
+HitData CreateHitData(float distance, float3 normal, uint rayIterations, uint fractalIterations)
 {
     HitData hit;
     hit.distance = distance;
     hit.normal = normal;
-    hit.iterations = iterations;
+    hit.rayIterations = rayIterations;
+    hit.fractalIterations = fractalIterations;
 
     return hit;
 }
 
-float GetDistance(float3 position)
+
+FractalData GetFractalData(float3 position)
 {
     float3 z = position;
     float dr = 1;
     float r = 0;
+    uint i = 0;
 
-    for (int i = 0; i < FractalIterations; i++)
+    for (i = 0; i < FractalIterations; i++)
     {
         r = length(z);
         if (r > 2) break;
@@ -76,7 +94,14 @@ float GetDistance(float3 position)
         z += position;
     }
 
-    return 0.5f * log(r) * r / dr;
+    float distance = 0.5f * log(r) * r / dr;
+
+    return CreateFractalData(distance, i);
+}
+
+float GetDistance(float3 position)
+{
+    return GetFractalData(position).distance;
 }
 
 float3 GetNormal(float3 position)
@@ -95,34 +120,29 @@ float3 GetNormal(float3 position)
 HitData RayMarch(Ray ray)
 {
     float distance = 0;
-    float3 normal = 0;
-    float3 color = 0;
+    uint fractalIterations = 0;
     uint i;
 
     for (i = 0; i < MaxSteps; i++)
     {
-        float currentDistance = GetDistance(ray.origin);
-        ray.origin += currentDistance * ray.direction;
-        distance += currentDistance;
+        FractalData data = GetFractalData(ray.origin);
+        ray.origin += data.distance * ray.direction;
+        distance += data.distance;
+        fractalIterations = data.iterations;
 
-        if (currentDistance <= MinDistance)
-        {
-            normal = GetNormal(ray.origin);
+        if (data.distance <= MinDistance)
             break;
-        }
     }
 
-    return CreateHitData(distance, normal, i);
+    float3 normal = GetNormal(ray.origin - ray.direction * 0.01f);
+
+    return CreateHitData(distance, normal, i, fractalIterations);
 }
 
 float3 GetLightColor(float3 normal)
 {
-    float3 lightDirection = float3(-1, -1, 1);
-    float3 lightColor = float3(1.0f, 0.956f, 0.8392f);
-    float lightIntensity = 0.1f;
-
-    float light = dot(normal, -lightDirection) + 1;
-    return lerp(0.25f, 1, light) * lightColor * lightIntensity;
+    float light = dot(normal, -LightDirection) + 1;
+    return lerp(0.25f, 1, light) * LightColor * LightIntensity;
 }
 
 [numthreads(32,32,1)]
@@ -137,8 +157,12 @@ void CSMain (uint3 id : SV_DispatchThreadID)
     HitData hit = RayMarch(ray);
 
     float3 lightColor = GetLightColor(hit.normal);
-    float3 distanceColor = 1.0f - float(hit.iterations) / float(MaxSteps);
-    float3 color = saturate(lightColor * ColorMix + distanceColor);
+    //float3 distanceColor = 1.0f - float(hit.rayIterations) / float(MaxSteps);
+    float3 distanceColor = float(hit.fractalIterations) / float(FractalIterations);
+    float3 color = saturate(distanceColor * ColorMix + lightColor);
+
+    float rim = hit.rayIterations / Darkness;
+    color = lerp(color, 1, BlackAndWhite) * rim;
 
     Result[id.xy] = float4(color, 0);
 }

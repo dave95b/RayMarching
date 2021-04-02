@@ -133,6 +133,7 @@ GameObject:
   m_Component:
   - component: {fileID: 403443139}
   - component: {fileID: 403443138}
+  - component: {fileID: 403443140}
   m_Layer: 0
   m_Name: Fractal
   m_TagString: Untagged
@@ -153,8 +154,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   renderDispatcher: {fileID: 1766485377}
+  lightSource: {fileID: 403443140}
   fractalShader: {fileID: 7200000, guid: 4a6bb3f750109b4489cb5961ab99a330, type: 3}
-  power: 8
+  power: 8.1
+  darkness: 13.2
+  blackAndWhite: 0
+  colorMix: {r: 0, g: 0.039124012, b: 1, a: 0}
 --- !u!4 &403443139
 Transform:
   m_ObjectHideFlags: 0
@@ -169,6 +174,19 @@ Transform:
   m_Father: {fileID: 0}
   m_RootOrder: 2
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &403443140
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 403443137}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b22016b3ad78a5e439228fa56530f835, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  light: {fileID: 705507994}
 --- !u!1 &705507993
 GameObject:
   m_ObjectHideFlags: 0
@@ -197,8 +215,8 @@ Light:
   serializedVersion: 10
   m_Type: 1
   m_Shape: 0
-  m_Color: {r: 1, g: 0.95686275, b: 0.8392157, a: 1}
-  m_Intensity: 1
+  m_Color: {r: 1, g: 0.6136044, b: 0, a: 1}
+  m_Intensity: 0.21
   m_Range: 10
   m_SpotAngle: 30
   m_InnerSpotAngle: 21.80208

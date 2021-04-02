@@ -10,11 +10,20 @@ namespace Fractals
         private OnRenderImageDispatcher renderDispatcher;
 
         [SerializeField]
+        private LightSource lightSource;
+
+        [SerializeField]
         private ComputeShader fractalShader;
 
         [Header("Fractal settings")]
         [SerializeField, Range(2, 32)]
         private float power = 8;
+
+        [SerializeField, Range(2, 100)]
+        private float darkness = 70;
+
+        [SerializeField, Range(0, 1)]
+        private float blackAndWhite = 0.5f;
 
         [SerializeField]
         private Color colorMix;
@@ -36,6 +45,8 @@ namespace Fractals
             target = RenderTextureCreator.Create();
             fractalShader.SetTexture(0, "Result", target);
             renderDispatcher.OnImageRendered += OnImageRendered;
+
+            lightSource.OnLightChanged += OnLightChanged;
         }
 
         //private void Update()
@@ -58,7 +69,16 @@ namespace Fractals
             fractalShader.SetMatrix("CameraToWorld", camera.cameraToWorldMatrix);
             fractalShader.SetMatrix("CameraInverseProjection", camera.projectionMatrix.inverse);
             fractalShader.SetFloat("Power", power);
+            fractalShader.SetFloat("Darkness", darkness);
+            fractalShader.SetFloat("BlackAndWhite", blackAndWhite);
             fractalShader.SetVector("ColorMix", FromColor(colorMix));
+        }
+
+        private void OnLightChanged(LightData data)
+        {
+            fractalShader.SetFloat("LightIntensity", data.Intensity);
+            fractalShader.SetVector("LightColor", FromColor(data.Color));
+            fractalShader.SetVector("LightDirection", data.Direction);
         }
 
         private Vector3 FromColor(Color color) => new Vector3(color.r, color.g, color.b);
