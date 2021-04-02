@@ -1,4 +1,5 @@
 using Raymarching;
+using System.Diagnostics;
 using UnityEngine;
 
 namespace Fractals
@@ -11,10 +12,19 @@ namespace Fractals
         [SerializeField]
         private ComputeShader fractalShader;
 
+        [Header("Fractal settings")]
+        [SerializeField, Range(2, 32)]
+        private float power = 8;
+
+        [SerializeField]
+        private Color colorMix;
+
         private RenderTexture target;
         private new Camera camera;
 
         private int threadGroupsX, threadGroupsY;
+
+        private Stopwatch s;
 
         private void Awake()
         {
@@ -28,9 +38,17 @@ namespace Fractals
             renderDispatcher.OnImageRendered += OnImageRendered;
         }
 
+        //private void Update()
+        //{
+        //    s.Stop();
+
+        //    UnityEngine.Debug.Log($"Render time: {s.Elapsed.TotalMilliseconds} ms");
+        //}
+
         private void OnImageRendered(RenderTexture source, RenderTexture destination)
         {
             SetShaderParameters();
+            s = Stopwatch.StartNew();
             fractalShader.Dispatch(0, threadGroupsX, threadGroupsY, 1);
             Graphics.Blit(target, destination);
         }
@@ -39,6 +57,10 @@ namespace Fractals
         {
             fractalShader.SetMatrix("CameraToWorld", camera.cameraToWorldMatrix);
             fractalShader.SetMatrix("CameraInverseProjection", camera.projectionMatrix.inverse);
+            fractalShader.SetFloat("Power", power);
+            fractalShader.SetVector("ColorMix", FromColor(colorMix));
         }
+
+        private Vector3 FromColor(Color color) => new Vector3(color.r, color.g, color.b);
     }
 }
