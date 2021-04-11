@@ -258,7 +258,7 @@ HitData RayMarch(Ray ray)
 
         if (step.distance <= MinDistance)
         {
-            normal = GetNormal(ray.origin);
+            normal = GetNormal(ray.origin - ray.direction * 0.01f);
             color = step.color;
             break;
         }
@@ -267,6 +267,25 @@ HitData RayMarch(Ray ray)
     return CreateHitData(distance, normal, color);
 }
 
+float Shadow(float3 position)
+{
+    float3 lightDirection = normalize(float3(-1, -1, 1));
+    const float minValue = 0.25f;
+    float res = 1.0f;
+
+    for (float t = 0.4f; t < 30.0f;)
+    {
+        float h = GetDistance(position - lightDirection * t);
+
+        if (h <= MinDistance)
+            return minValue;
+
+        res = min(res, 12 * h / t);
+        t += h;
+    }
+
+    return lerp(minValue, res, res);
+}
 
 [numthreads(32,32,1)]
 void CSMain (uint3 id : SV_DispatchThreadID)
@@ -282,11 +301,16 @@ void CSMain (uint3 id : SV_DispatchThreadID)
 
     HitData hit = RayMarch(ray);
 
-    float3 lightDirection = float3(-1, -1, 1);
+    float3 lightDirection = normalize(float3(-1, -1, 1));
     float3 lightColor = float3(1.0f, 0.956f, 0.8392f);
     float lightIntensity = 0.65f;
 
     float light = dot(hit.normal, -lightDirection) + 1;
-    float3 color = hit.color * lerp(0.25f, 1, light) * lightColor * lightIntensity;
+    float3 color = hit.color * light * lightColor * lightIntensity;
+
+    float3 position = ray.origin + ray.direction * hit.distance;
+    float shadow = Shadow(position);
+    color *= shadow;
+
     Result[id.xy] = float4(color, 0);
 }

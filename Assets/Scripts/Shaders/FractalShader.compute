@@ -80,7 +80,7 @@ FractalData GetFractalData(float3 position)
     for (i = 0; i < FractalIterations; i++)
     {
         r = length(z);
-        if (r > 2) break;
+        if (r > 3.7) break;
 
         float theta = acos(z.z / r);
         float phi = atan2(z.y, z.x);
@@ -157,7 +157,6 @@ void CSMain (uint3 id : SV_DispatchThreadID)
     HitData hit = RayMarch(ray);
 
     float3 lightColor = GetLightColor(hit.normal);
-    //float3 distanceColor = 1.0f - float(hit.rayIterations) / float(MaxSteps);
     float3 distanceColor = float(hit.fractalIterations) / float(FractalIterations);
     float3 color = saturate(distanceColor * ColorMix + lightColor);
 
